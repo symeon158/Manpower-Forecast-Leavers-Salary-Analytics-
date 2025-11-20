@@ -9,6 +9,73 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import mean_absolute_error
 import optuna
 
+
+# -------------------------------------------------------------------
+# CUSTOM CSS FOR KPI CARDS
+# -------------------------------------------------------------------
+kpi_css = """
+<style>
+.kpi-card {
+    background: linear-gradient(135deg, #f0f4f8 0%, #dce6f2 100%);
+    border-radius: 16px;
+    padding: 16px 18px;
+    border: 1px solid #e2e8f0;
+    color: #0d1b2a;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.07);
+    font-family: 'Segoe UI', sans-serif;
+}
+
+.kpi-label {
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #4a5568;
+    font-weight: 700;   /* BOLD */
+}
+
+.kpi-value {
+    font-size: 1.7rem;
+    font-weight: 700;
+    color: #1f77b4;
+    margin-top: 4px;
+}
+
+.kpi-subtitle {
+    font-size: 0.80rem;
+    color: #4a5568;
+    margin-top: 2px;
+}
+
+.kpi-badge {
+    display: inline-block;
+    font-size: 0.70rem;
+    padding: 2px 10px;
+    border-radius: 10px;
+    background: #edf2f7;
+    color: #1f77b4;
+    margin-top: 6px;
+    border: 1px solid #d1d9e0;
+}
+</style>
+"""
+st.markdown(kpi_css, unsafe_allow_html=True)
+
+
+
+
+def kpi_card(label: str, value: str, subtitle: str | None = None, badge: str | None = None):
+    """Render a single KPI card with custom CSS."""
+    html = f"""
+    <div class="kpi-card">
+        <div class="kpi-label">{label}</div>
+        <div class="kpi-value">{value}</div>
+        {f'<div class="kpi-subtitle">{subtitle}</div>' if subtitle else ''}
+        {f'<div class="kpi-badge">{badge}</div>' if badge else ''}
+    </div>
+    """
+    st.markdown(html, unsafe_allow_html=True)
+
+
 # -------------------------------------------------------------------
 # PAGE CONFIG
 # -------------------------------------------------------------------
@@ -48,6 +115,16 @@ def load_leavers_data(uploaded_file: bytes) -> pd.DataFrame:
         },
         errors="ignore"
     )
+    for col in df.columns:
+        if "κωδ" in col and "εργαζ" in col:
+            employee_code_col = col
+            break
+
+    # If detected, drop duplicates keeping the latest row
+    if employee_code_col:
+        df = df.sort_values(by=df.columns.tolist()).drop_duplicates(subset=[employee_code_col], keep="last")
+        if "JobTitle" in df.columns:
+            df["JobTitle"] = df["JobTitle"].replace("ΕΡΓΑΤΗΣ", "WORKER")
 
     # Detect salary column
     salary_col = None
@@ -81,6 +158,31 @@ def load_leavers_data(uploaded_file: bytes) -> pd.DataFrame:
             .str.replace(",", ".", regex=False)  # decimal
         )
         df["NominalSalary"] = pd.to_numeric(df["NominalSalary"], errors="coerce")
+   
+    # 2) Company list for special salary rule
+
+    special_companies = [
+        "ΑΛΟΥΜΥΛ Α.Ε.",
+        "CFT CARBON FIBER TECHNOLOGIES P.C.",
+        "ALUTRADE ΕΜΠΟΡΙΟ ΑΛΟΥΜΙΝΙΟΥ Α.Ε.",
+        "BMP Α.Ε.",
+        "ALUSEAL A.E.",
+        "GLM HELLAS ΑΕ",
+        "ΑΛΟΥΜΥΛ ΑΡΧΙΤΕΚΤΟΝΙΚΑ ΣΥΣΤΗΜΑΤΑ  Α.Ε.",
+        "ΓΑ ΒΙΟΜΗΧ. ΠΛΑΣΤ. ΥΛΩΝ  Α.Ε.",
+        "BUILDING SYSTEMS INNOVATION CENTRE ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",
+        "ΝΕΑ ΑΛΟΥΦΟΝΤ ΜΟΝΟΠΡΟΣΩΠΗ ΑΝΩΝΥΜΗ ΕΤΑΙΡΕΙΑ",
+    ]
+
+    threshold = 90  # <<< CHANGE THIS to your preferred cutoff
+
+    if "NominalSalary" in df.columns and "Company" in df.columns:
+        df.loc[
+            (df["Company"].isin(special_companies)) &
+            (df["NominalSalary"].notna()) &
+            (df["NominalSalary"] < threshold),
+            "NominalSalary"
+        ] = df["NominalSalary"] * 26
 
     # Clean grade
     grade_cols = [col for col in df.columns if "grade" in col]
@@ -589,50 +691,87 @@ model, forecast, metrics_model = run_prophet_forecast(
 
 baseline_metrics = compute_baseline_metrics(ts, metric)
 
+
+df_leavers_period = df_filtered.dropna(subset=["DepartureDate"]).copy()
+
+if "Departure Type" in df_leavers_period.columns and selected_dep_types:
+    df_leavers_period = df_leavers_period[df_leavers_period["Departure Type"].isin(selected_dep_types)]
+
+df_leavers_period = df_leavers_period[
+    (df_leavers_period["DepartureDate"] >= date_range[0]) &
+    (df_leavers_period["DepartureDate"] <= date_range[1])
+]
+
 # -------------------------------------------------------------------
 # TOP KPIS (FIRST ROW)
 # -------------------------------------------------------------------
 col_kpi1, col_kpi2, col_kpi3, col_kpi4, col_kpi5, col_kpi6 = st.columns(6)
 
+total_dep = int(ts["Departures"].sum())
+total_hires = int(ts["Hires"].sum())
+last_dep = int(ts.iloc[-1]["Departures"]) if not ts.empty else 0
+period_label = f"{ts['Date'].min():%Y-%m} → {ts['Date'].max():%Y-%m}"
+
 with col_kpi1:
-    total_dep = int(ts["Departures"].sum())
-    st.metric("Συνολικές αποχωρήσεις", f"{total_dep}")
+    kpi_card(
+        label="Συνολικές αποχωρήσεις",
+        value=f"{total_dep:,}",
+        subtitle=period_label,
+        badge="Departures"
+    )
 
 with col_kpi2:
-    total_hires = int(ts["Hires"].sum())
-    st.metric("Συνολικές προσλήψεις", f"{total_hires}")
+    kpi_card(
+        label="Συνολικές προσλήψεις",
+        value=f"{total_hires:,}",
+        subtitle=period_label,
+        badge="Hires"
+    )
 
 with col_kpi3:
-    if not ts.empty:
-        last_dep = int(ts.iloc[-1]["Departures"])
-        st.metric("Τελευταίος μήνας - αποχωρήσεις", f"{last_dep}")
-    else:
-        st.metric("Τελευταίος μήνας - αποχωρήσεις", "N/A")
+    kpi_card(
+        label="Τελευταίος μήνας - αποχωρήσεις",
+        value=str(last_dep),
+        subtitle=f"{ts['Date'].max():%Y-%m}" if not ts.empty else "",
+        badge="Latest month"
+    )
 
 with col_kpi4:
     if metrics_model is not None and not np.isnan(metrics_model["mae"]):
-        st.metric("MAE Prophet", f"{metrics_model['mae']:.2f} {metric}")
+        kpi_card(
+            label="MAE Prophet",
+            value=f"{metrics_model['mae']:.2f}",
+            subtitle=f"Metric: {metric}",
+            badge="Model accuracy"
+        )
     else:
-        st.metric("MAE Prophet", "N/A")
+        kpi_card("MAE Prophet", "N/A")
 
 with col_kpi5:
     if metrics_model is not None and not np.isnan(metrics_model["mape"]):
-        st.metric("MAPE Prophet", f"{metrics_model['mape']:.2f}%")
+        kpi_card(
+            label="MAPE Prophet",
+            value=f"{metrics_model['mape']:.2f}%",
+            subtitle=f"Metric: {metric}",
+            badge="Model accuracy"
+        )
     else:
-        st.metric("MAPE Prophet", "N/A")
+        kpi_card("MAPE Prophet", "N/A")
 
 with col_kpi6:
     if model is not None and forecast is not None:
         last_history_date = ts["Date"].max()
         future_forecast = forecast[forecast["ds"] > last_history_date]
         total_predicted_sum = int(future_forecast["yhat"].sum().round(0))
-        st.metric(
-            f"Total Predicted {metric}",
-            f"{total_predicted_sum}",
-            help=f"Συνολικό forecast {metric} για τους επόμενους {horizon} μήνες."
+        kpi_card(
+            label=f"Total Predicted {metric}",
+            value=f"{total_predicted_sum:,}",
+            subtitle=f"Next {horizon} months",
+            badge="Forecast"
         )
     else:
-        st.metric(f"Total Predicted {metric}", "N/A")
+        kpi_card(f"Total Predicted {metric}", "N/A")
+
 
 period_label = f"{ts['Date'].min():%Y-%m} → {ts['Date'].max():%Y-%m}"
 st.markdown(f"**Περίοδος δεδομένων (επιλεγμένο time series):** {period_label}")
@@ -643,33 +782,15 @@ st.markdown("---")
 # LEAVERS DATA (FILTERED BY PERIOD & DEPARTURE TYPE)
 # -------------------------------------------------------------------
 # Base leavers set
-df_leavers_period = df_filtered.dropna(subset=["DepartureDate"]).copy()
+# -------------------------------------------------------------------
+# LEAVERS DATA (FILTERED BY PERIOD & DEPARTURE TYPE)
+# -------------------------------------------------------------------
 
-# Apply departure-type filter (ίδιο με ts)
-if "Departure Type" in df_leavers_period.columns and selected_dep_types:
-    df_leavers_period = df_leavers_period[df_leavers_period["Departure Type"].isin(selected_dep_types)]
 
-# 🔁 Στοίχιση με τα monthly buckets του ts
-# Φτιάχνουμε μήνα-πρώτη-ημέρα για κάθε DepartureDate
-df_leavers_period["Month"] = (
-    df_leavers_period["DepartureDate"]
-    .dt.to_period("M")
-    .dt.to_timestamp()
-)
-
-# Παίρνουμε και τα όρια του slider ως "μήνα"
-start_month = pd.to_datetime(date_range[0]).replace(day=1)
-end_month = pd.to_datetime(date_range[1]).replace(day=1)
-
-df_leavers_period = df_leavers_period[
-    (df_leavers_period["Month"] >= start_month) &
-    (df_leavers_period["Month"] <= end_month)
-]
-
-# Early leavers & voluntary KPIs
 early_kpi1, early_kpi2, early_kpi3 = st.columns(3)
 
 if not df_leavers_period.empty:
+
     df_leavers_period["TenureDays"] = (df_leavers_period["DepartureDate"] - df_leavers_period["HireDate"]).dt.days
     df_leavers_period["TenureMonths"] = df_leavers_period["TenureDays"] / 30.4
 
@@ -683,20 +804,37 @@ if not df_leavers_period.empty:
     vol_pct = vol_count / total_leavers_curr * 100 if total_leavers_curr > 0 else 0
 
     with early_kpi1:
-        st.metric("Leavers (επιλεγμένη περίοδος)", f"{total_leavers_curr}")
+        kpi_card(
+            label="Leavers (επιλεγμένη περίοδος)",
+            value=f"{total_dep:,}",
+            subtitle=period_label,
+            badge="All leavers"
+        )
 
     with early_kpi2:
-        st.metric(f"Early leavers (<{early_threshold} μήνες)", f"{early_count} ({early_pct:.1f}%)")
+        kpi_card(
+            label=f"Early leavers (<{early_threshold} μήνες)",
+            value=f"{early_count:,}",
+            subtitle=f"{early_pct:.1f}% του συνόλου",
+            badge="Onboarding risk"
+        )
 
     with early_kpi3:
-        st.metric("Voluntary departures", f"{vol_count} ({vol_pct:.1f}%)")
+        kpi_card(
+            label="Voluntary departures",
+            value=f"{vol_count:,}",
+            subtitle=f"{vol_pct:.1f}% του συνόλου",
+            badge="Voluntary churn"
+        )
+
 else:
     with early_kpi1:
-        st.metric("Leavers (επιλεγμένη περίοδος)", "0")
+        kpi_card("Leavers (επιλεγμένη περίοδος)", "0")
     with early_kpi2:
-        st.metric(f"Early leavers (<{early_threshold} μήνες)", "0 (0.0%)")
+        kpi_card(f"Early leavers (<{early_threshold} μήνες)", "0", subtitle="0.0%")
     with early_kpi3:
-        st.metric("Voluntary departures", "0 (0.0%)")
+        kpi_card("Voluntary departures", "0", subtitle="0.0%")
+
 
 st.markdown("---")
 
@@ -896,8 +1034,13 @@ with tab_churn:
         total_leavers_grand = profile_summary["Total_Departures"].sum()
         profile_summary["Churn Ratio (%)"] = (profile_summary["Total_Departures"] / total_leavers_grand) * 100
 
-        # Approx churn cost index
-        profile_summary["Churn Cost Index"] = profile_summary["Total_Departures"] * profile_summary["Avg_Salary"].fillna(0)
+        # 👉 Numeric Churn Cost Index
+        profile_summary["Churn Cost Index"] = (
+            profile_summary["Total_Departures"] * profile_summary["Avg_Salary"].fillna(0)
+        )
+
+        # 👉 Κρατάμε numeric έκδοση για σωστό sort
+        profile_summary["ChurnCostIndex_num"] = profile_summary["Churn Cost Index"]
 
         profile_summary = profile_summary.rename(
             columns={
@@ -909,7 +1052,7 @@ with tab_churn:
             }
         )
 
-        # Formatting for display
+        # Formatting για εμφάνιση (ΔΕΝ πειράζει το numeric helper)
         profile_summary["Avg Salary (Leavers)"] = profile_summary["Avg Salary (Leavers)"].map(
             lambda x: f"{x:,.0f}" if pd.notnull(x) else "N/A"
         )
@@ -923,6 +1066,7 @@ with tab_churn:
             lambda x: f"{x:,.0f}" if pd.notnull(x) else "N/A"
         )
 
+        # Βασική ταξινόμηση πίνακα
         profile_summary = profile_summary.sort_values("Total Leavers (History)", ascending=False)
 
         top_n = st.slider("Display Top N Leaver Job Titles:", min_value=5, max_value=25, value=10)
@@ -940,8 +1084,8 @@ with tab_churn:
 
         st.dataframe(profile_summary[display_cols].head(top_n), use_container_width=True)
 
-        # Top 3 critical roles narrative
-        top3 = profile_summary.sort_values("Churn Cost Index", ascending=False).head(3)
+        # 🏅 Τώρα το Top 3 χρησιμοποιεί το numeric ChurnCostIndex_num
+        top3 = profile_summary.sort_values("ChurnCostIndex_num", ascending=False).head(3)
         if not top3.empty:
             st.markdown("#### 🏅 Top 3 ρόλοι με τον υψηλότερο 'Churn Cost Index'")
             bullets = []
@@ -954,8 +1098,8 @@ with tab_churn:
                 )
             st.markdown("\n".join(bullets))
 
-        # Download button for churn profile
-        csv_profile = profile_summary.to_csv(index=False).encode("utf-8-sig")
+        # Download button για πλήρες profile
+        csv_profile = profile_summary[display_cols].to_csv(index=False).encode("utf-8-sig")
         st.download_button(
             label="⬇️ Download Full Churn Profile (CSV)",
             data=csv_profile,
@@ -965,11 +1109,11 @@ with tab_churn:
 
         st.markdown(
             "*Note: Το 'Avg Departs / Month' εκφράζει τον μέσο μηνιαίο φόρτο αντικατάστασης για κάθε ρόλο, "
-            "με βάση την επιλεγμένη περίοδο του time series. Το 'Churn Cost Index' είναι προσεγγιστικό μέτρο "
-            "συνδυασμού όγκου αποχωρήσεων και μέσης μισθοδοσίας.*"
+            "ενώ το 'Churn Cost Index' είναι προσεγγιστικό μέτρο που συνδυάζει όγκο αποχωρήσεων και μέση μισθοδοσία.*"
         )
     else:
         st.info("Δεν υπάρχουν αποχωρήσεις για να δημιουργηθεί προφίλ κινδύνου στην επιλεγμένη περίοδο.")
+
 
 # -------------------------------------------------------------------
 # TAB 4: RAW DATA
