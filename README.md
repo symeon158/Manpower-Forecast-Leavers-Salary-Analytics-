@@ -29,6 +29,11 @@ The app has been designed for **HR departments**, **HR Business Partners**, **C&
   - Leakage prevention (safe removal of future-only columns)
 - Real-time prediction of **Attrition Probability** for all active employees.
 
+<img width="389" height="523" alt="image" src="https://github.com/user-attachments/assets/571a06e0-d6f0-49b6-8e44-de545669384e" />
+
+<img width="1270" height="926" alt="image" src="https://github.com/user-attachments/assets/e5e6599b-3edd-4051-b4e8-286997db98b9" />
+
+
 ---
 
 ### 🧠 2. Explainable AI (SHAP)
@@ -38,6 +43,8 @@ The app has been designed for **HR departments**, **HR Business Partners**, **C&
   - Employee name, registry number, role, division/department  
 - Optional **SHAP interaction effects** with caching to avoid repeated heavy calculations.
 - **Scenario-ready explainability** supporting HRBP conversations.
+
+<img width="1349" height="929" alt="image" src="https://github.com/user-attachments/assets/927691bf-ea9e-4ce8-a9ee-016dcd1fd154" />
 
 ---
 
@@ -52,6 +59,7 @@ The app has been designed for **HR departments**, **HR Business Partners**, **C&
   - MAE  
   - Bias estimate  
 - Forecast visualizations with confidence intervals.
+<img width="1359" height="631" alt="image" src="https://github.com/user-attachments/assets/59bd15bf-7291-404d-a1cb-e7a736ad26d1" />
 
 ---
 
@@ -62,6 +70,7 @@ The app has been designed for **HR departments**, **HR Business Partners**, **C&
   - Active employees  
 - Grade patterns, job property analysis, and group-level compensation structure.
 - Supports C&B teams in **cost planning** and salary strategy.
+<img width="575" height="474" alt="image" src="https://github.com/user-attachments/assets/ae9ecf6f-74b3-4cac-9b63-3c87ef908fde" />
 
 ---
 
@@ -73,6 +82,9 @@ The app has been designed for **HR departments**, **HR Business Partners**, **C&
   - Workforce stability indicators  
 - Multi-level filters (Company → Division → Department → Job Title)
 - Interactive drill-down tables and detailed managerial insights.
+<img width="411" height="983" alt="image" src="https://github.com/user-attachments/assets/fb52be25-b294-4871-a2cc-4ea8debcb29b" />
+<img width="880" height="229" alt="image" src="https://github.com/user-attachments/assets/0bc327cf-49cd-446d-a3ae-61154043669b" />
+
 
 ---
 
