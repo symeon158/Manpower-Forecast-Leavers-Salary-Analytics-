@@ -1,98 +1,126 @@
-# 📈 Manpower Forecast & Leavers Salary Analytics  
-*A Streamlit-Based HR Analytics & Workforce Forecasting Platform*
+# **AI-Powered Workforce Intelligence Platform**  
+### *Manpower Forecasting • Attrition Prediction • SHAP Explainability • Salary Analytics*
 
-This repository contains a comprehensive **HR Analytics application** built with **Python** and **Streamlit**, designed to provide deep insights into workforce movements and separation trends across an organization.
-
-The app integrates **time series forecasting**, **salary analysis**, and **churn profiling**, offering HR leaders a powerful tool for decision-making, risk mitigation, and workforce planning.
-
----
-
-## 🚀 Key Features
-
-### 🔮 Time Series Forecasting (Prophet + Optuna)
-- Forecasts **Departures**, **Hires**, and **Net Hires**  
-- Automated hyperparameter tuning via **Optuna**  
-- Trend & yearly seasonality decomposition  
-- Evaluation against a **12-month baseline model**  
-- Exportable forecast table (CSV)
+![banner](https://img.shields.io/badge/Python-3.10%2B-blue?style=for-the-badge)
+![streamlit](https://img.shields.io/badge/Streamlit-1.51-success?style=for-the-badge)
+![xgboost](https://img.shields.io/badge/XGBoost-2.0-orange?style=for-the-badge)
+![prophet](https://img.shields.io/badge/Prophet-1.2-purple?style=for-the-badge)
+![shap](https://img.shields.io/badge/SHAP-Explainable_AI-red?style=for-the-badge)
 
 ---
 
-### 📊 Workforce Time Series
-- Dynamic analysis period (full history, last 12 months, last 24 months)
-- Monthly metrics:
-  - **Hires**
-  - **Departures**
-  - **Net Hires**
-  - **Headcount (snapshot)**
-  - **Turnover Rate (%) — historical KPI only**
-- Interactive line charts and bar charts
+## 📌 Overview
+
+This project is an **AI-powered Workforce Intelligence platform** that transforms raw HR data into dynamic insights for **workforce planning, attrition prevention, and salary analytics**.  
+Built with **Streamlit**, it provides a unified, fully automated environment for HR teams to analyze workforce trends, forecast leavers, and understand the drivers behind employee attrition.
+
+The app has been designed for **HR departments**, **HR Business Partners**, **C&B analysts**, and **HR leadership**, providing actionable insights that previously required multiple systems, manual reporting, and Excel-based work.
 
 ---
 
-### 💶 Leavers Salary & Grade Analytics
-- Salary distribution of leavers (boxplots)
-- Average salary by **Grade**
-- Job Title–based compensation patterns
-- Support for mixed decimal separators (European locale)
+## 🚀 Core Features
+
+### 🔮 1. AI Attrition Prediction (XGBoost)
+- Highly optimized XGBoost classifier focused on **recall** — detecting as many true leavers as possible.
+- Clean preprocessing pipeline for HR datasets including:
+  - Tenure calculation  
+  - Salary normalization & log-transform  
+  - Encoding of categorical features  
+  - Leakage prevention (safe removal of future-only columns)
+- Real-time prediction of **Attrition Probability** for all active employees.
 
 ---
 
-### 🎯 Churn Profile Intelligence
-- Identification of roles with highest:
-  - **Leavers count**
-  - **Monthly churn load**
-  - **Churn Ratio (%)**
-  - **Salary impact**
-  - **Churn Cost Index** (high-level approximation)
-- “Top 3 Critical Roles” section based on churn cost
-- Exportable churn profile dataset
+### 🧠 2. Explainable AI (SHAP)
+- **Global SHAP importance** (dot & bar summary plots)  
+- **Per-employee explanation** with:
+  - Top SHAP drivers  
+  - Employee name, registry number, role, division/department  
+- Optional **SHAP interaction effects** with caching to avoid repeated heavy calculations.
+- **Scenario-ready explainability** supporting HRBP conversations.
 
 ---
 
-### 🧩 Voluntary vs Non-Voluntary Departures
-- Automatic classification of departure types  
-- Monthly stacked bar charts  
-- KPIs:
-  - **Voluntary %**
-  - **Early leavers** (configurable threshold in months)
+### 📈 3. Manpower Forecasting (Prophet + Optuna)
+- Monthly forecasting of:
+  - Leavers  
+  - Hires  
+  - Net headcount  
+- Integrated **hyperparameter optimization** with Optuna for improved forecast accuracy.
+- Multiple error metrics:
+  - **RMSE** (default & robust)  
+  - MAE  
+  - Bias estimate  
+- Forecast visualizations with confidence intervals.
 
 ---
 
-### 🗂️ Filter Controls
-All analyses are dynamically filtered by:
-- **Company**
-- **Division**
-- **Department**
-- **Job Title**
-- **Departure Type**
-- **Date range (timeline slider)**
+### 💶 4. Salary & Grade Analytics
+- Salary distributions of:
+  - New hires  
+  - Leavers  
+  - Active employees  
+- Grade patterns, job property analysis, and group-level compensation structure.
+- Supports C&B teams in **cost planning** and salary strategy.
 
 ---
 
-### 🧾 Business Summary (HR Narrative)
-The app automatically generates a short strategic summary describing:
-- Historical workforce dynamics  
-- Average monthly departure patterns  
-- Forecast expectations for next X months  
-- Model accuracy commentary  
+### 🗂 5. Workforce Dashboards & KPIs
+- Full HR KPI suite:
+  - Turnover Rate  
+  - Early Leavers (<12 months)  
+  - Voluntary vs Non-voluntary exits  
+  - Workforce stability indicators  
+- Multi-level filters (Company → Division → Department → Job Title)
+- Interactive drill-down tables and detailed managerial insights.
 
 ---
 
-## 🛠️ Tech Stack
-
-- **Python**
-- **Streamlit**
-- **Pandas / NumPy**
-- **Prophet**
-- **Optuna**
-- **Plotly**
-- **Matplotlib**
+### 📤 6. Automated Outputs
+- Downloadable CSVs:
+  - Predicted leavers + SHAP drivers  
+  - Cleaned datasets  
+  - Forecast results  
+- Consistent formatting for integration with Power BI & HR reporting workflows.
 
 ---
 
-## 📦 Installation
+## 🎯 Business Value / Impact
 
-```bash
-pip install -r requirements.txt
+### ➤ For HR Departments
+- Automated headcount & attrition analysis  
+- Faster, more accurate workforce planning  
+- Early identification of at-risk employees  
+
+### ➤ For HR Business Partners
+- Case-by-case explainability  
+- Better preparation for sensitive discussions  
+- Improved support for line managers  
+
+### ➤ For C&B Teams
+- Salary structure insights (hiring vs attrition)  
+- Grade alignment analysis  
+- Stronger budget planning  
+
+### ➤ For HR Leadership
+- A **single source of truth** for all HR metrics  
+- Predictive insights that support annual & strategic planning  
+- Dashboards replacing slow/manual Excel workflows  
+
+---
+
+## 🛠 Tech Stack
+
+| Category       | Tools |
+|----------------|-------|
+| Web App        | **Streamlit** |
+| ML / AI        | **XGBoost**, **scikit-learn**, **SHAP** |
+| Forecasting    | **Prophet**, **Optuna** |
+| Visualization  | **Plotly**, **Matplotlib**, **Seaborn** |
+| Data           | **Pandas**, **NumPy**, **OpenPyXL** |
+| Deployment     | **Streamlit Cloud** |
+
+---
+
+## 📦 Project Structure
 
