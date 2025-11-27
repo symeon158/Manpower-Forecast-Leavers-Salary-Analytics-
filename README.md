@@ -124,3 +124,21 @@ The app has been designed for **HR departments**, **HR Business Partners**, **C&
 
 ## 📦 Project Structure
 
+manpower-analytics/
+│
+├── app.py # Main Streamlit application
+├── requirements.txt # Dependency list
+├── utils/
+│ ├── preprocessing.py # HR data cleaning & transformation
+│ ├── forecasting.py # Prophet + Optuna forecasting engine
+│ ├── model_ml.py # XGBoost model training & evaluation
+│ ├── shap_explain.py # SHAP explainability utilities
+│ └── helpers.py # Shared helper functions
+│
+├── assets/
+│ ├── css/ # Custom UI styling
+│ ├── images/ # Logos, banners
+│ └── examples/ # Sample datasets
+│
+└── README.md # Project documentation
+
