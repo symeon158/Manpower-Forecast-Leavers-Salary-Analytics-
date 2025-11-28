@@ -15,6 +15,7 @@ This project is an **AI-powered Workforce Intelligence platform** that transform
 Built with **Streamlit**, it provides a unified, fully automated environment for HR teams to analyze workforce trends, forecast leavers, and understand the drivers behind employee attrition.
 
 The app has been designed for **HR departments**, **HR Business Partners**, **C&B analysts**, and **HR leadership**, providing actionable insights that previously required multiple systems, manual reporting, and Excel-based work.
+
 <img width="1859" height="770" alt="image" src="https://github.com/user-attachments/assets/96ecdaf9-1389-454f-9f21-6b03dc6493ef" />
 
 
