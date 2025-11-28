@@ -26,8 +26,8 @@ The app has been designed for **HR departments**, **HR Business Partners**, **C&
 ### 🔮 1. AI Attrition Prediction (XGBoost)
 - Highly optimized XGBoost classifier focused on **recall** — detecting as many true leavers as possible.
 - Clean preprocessing pipeline for HR datasets including:
-  - Tenure calculation  
-  - Salary normalization & log-transform  
+  - Feature Engineering
+  - Normalization
   - Encoding of categorical features  
   - Leakage prevention (safe removal of future-only columns)
 - Real-time prediction of **Attrition Probability** for all active employees.
@@ -58,7 +58,7 @@ The app has been designed for **HR departments**, **HR Business Partners**, **C&
   - Net headcount  
 - Integrated **hyperparameter optimization** with Optuna for improved forecast accuracy.
 - Multiple error metrics:
-  - **RMSE** (default & robust)  
+  - **RMSE**
   - MAE  
   - Bias estimate  
 - Forecast visualizations with confidence intervals.
