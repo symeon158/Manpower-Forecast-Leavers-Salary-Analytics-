@@ -1,177 +1,159 @@
-"""
-Central configuration. Every magic number lives here.
-Edit ONLY this file when business rules change.
-"""
-from __future__ import annotations
+# **AI-Powered Workforce Intelligence Platform**  
+### *Manpower Forecasting • Attrition Prediction • SHAP Explainability • Salary Analytics*
 
-# --------------------------------------------------------------------
-# Time / calendar
-# --------------------------------------------------------------------
-DAYS_PER_MONTH: float = 30.4375          # avg, used for tenure calc
-MONTHS_PER_YEAR: int = 12
+![banner](https://img.shields.io/badge/Python-3.10%2B-blue?style=for-the-badge)
+![streamlit](https://img.shields.io/badge/Streamlit-1.51-success?style=for-the-badge)
+![xgboost](https://img.shields.io/badge/XGBoost-2.0-orange?style=for-the-badge)
+![prophet](https://img.shields.io/badge/Prophet-1.2-purple?style=for-the-badge)
+![shap](https://img.shields.io/badge/SHAP-Explainable_AI-red?style=for-the-badge)
 
-# --------------------------------------------------------------------
-# Forecasting defaults
-# --------------------------------------------------------------------
-DEFAULT_FORECAST_HORIZON: int = 12
-DEFAULT_RECENT_MONTHS_FOR_TUNING: int = 36
-DEFAULT_PROPHET_CHANGEPOINT_PRIOR: float = 0.05
-DEFAULT_PROPHET_SEASONALITY_PRIOR: float = 10.0
-DEFAULT_PROPHET_WEEKLY_SEASONALITY: bool = False
-START_YEAR_FOR_TS: int = 2019
+---
 
-# Optuna
-OPTUNA_DEFAULT_TRIALS: int = 30
-OPTUNA_TRIAL_RANGE: tuple[int, int] = (10, 100)
+## 📌 Overview
 
-# --------------------------------------------------------------------
-# Salary cleaning rules
-# --------------------------------------------------------------------
-# Below this monthly value, we assume the figure is daily/weekly and multiply
-LOW_SALARY_THRESHOLD: float = 90.0
-LOW_SALARY_MULTIPLIER: float = 26.0  # ~working days/month
+This project is an **AI-powered Workforce Intelligence platform** that transforms raw HR data into dynamic insights for **workforce planning, attrition prevention, and salary analytics**.  
+Built with **Streamlit**, it provides a unified, fully automated environment for HR teams to analyze workforce trends, forecast leavers, and understand the drivers behind employee attrition.
 
-# Companies that need the low-salary fix
-SPECIAL_SALARY_COMPANIES: list[str] = [
-    "ΑΛΟΥΜΥΛ Α.Ε.",
-    "CFT CARBON FIBER TECHNOLOGIES P.C.",
-    "ALUTRADE ΕΜΠΟΡΙΟ ΑΛΟΥΜΙΝΙΟΥ Α.Ε.",
-    "BMP Α.Ε.",
-    "ALUSEAL A.E.",
-    "GLM HELLAS ΑΕ",
-    "ΑΛΟΥΜΥΛ ΑΡΧΙΤΕΚΤΟΝΙΚΑ ΣΥΣΤΗΜΑΤΑ  Α.Ε.",
-    "ΓΑ ΒΙΟΜΗΧ. ΠΛΑΣΤ. ΥΛΩΝ  Α.Ε.",
-    "BUILDING SYSTEMS INNOVATION CENTRE ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ",
-    "ΝΕΑ ΑΛΟΥΦΟΝΤ ΜΟΝΟΠΡΟΣΩΠΗ ΑΝΩΝΥΜΗ ΕΤΑΙΡΕΙΑ",
-]
+The app has been designed for **HR departments**, **HR Business Partners**, **C&B analysts**, and **HR leadership**, providing actionable insights that previously required multiple systems, manual reporting, and Excel-based work.
 
-# --------------------------------------------------------------------
-# ML business filters
-# --------------------------------------------------------------------
-ML_TARGET_COMPANY: str = "ΑΛΟΥΜΥΛ Α.Ε."
-ML_WORK_RELATIONSHIP: str = "ΑΟΡΙΣΤΟΥ ΧΡΟΝΟΥ"
-ML_TARGET_DEPARTURE_REASON: str = "VOLUNTARY DEPARTURE"
-ML_DEPARTURE_DATE_CUTOFF: str = "2018-12-31"
-ML_REPLACE_DEPARTMENT_PATTERN: str = "ΕΠΑΝΑΤΙΜΟΛΟΓΗΣΗ"
-ML_REPLACE_REASON: str = "ΜΕΤΑΦΟΡΑ ΣΕ ΑΛΛΗ ΕΤΑΙΡΕΙΑ"
+<img width="1859" height="770" alt="image" src="https://github.com/user-attachments/assets/96ecdaf9-1389-454f-9f21-6b03dc6493ef" />
 
-# --------------------------------------------------------------------
-# ML model
-# --------------------------------------------------------------------
-ML_TEST_SIZE: float = 0.2
-ML_RANDOM_STATE: int = 42
-ML_CV_FOLDS: int = 5
-ML_RANDOMSEARCH_ITERATIONS: int = 50
-ML_DEFAULT_THRESHOLD: float = 0.4
 
-# --- New: scoring + temporal handling ---
-# Use F1 by default; "average_precision" (PR-AUC) is also a strong choice for
-# imbalanced data. Avoid pure "recall" — its degenerate optimum is predicting 1
-# for everyone. See ml/trainer.py for the rationale.
-ML_SCORING: str = "f1"
+---
 
-# Switch CV / split strategy.
-# "temporal" → train on people whose Hire Date (or Departure Date) is older,
-#              test on more recent rows. Honest estimate of production behavior.
-# "random"   → classic stratified shuffle. Optimistic but matches old behavior.
-ML_SPLIT_STRATEGY: str = "temporal"
+## 🚀 Core Features
 
-# Reference date used to compute Tenure for *active* employees.  Setting it to a
-# fixed point avoids the leak where the same active employee scores higher each
-# month simply because their tenure keeps growing.  None ⇒ use today.
-ML_SNAPSHOT_DATE: str | None = None  # e.g. "2024-12-31"
+### 🔮 1. AI Attrition Prediction (XGBoost)
+- Highly optimized XGBoost classifier focused on **recall** — detecting as many true leavers as possible.
+- Clean preprocessing pipeline for HR datasets including:
+  - Feature Engineering
+  - Normalization
+  - Encoding of categorical features  
+  - Leakage prevention (safe removal of future-only columns)
+- Real-time prediction of **Attrition Probability** for all active employees.
 
-# --- New: feature engineering ---
-# Categories appearing in fewer than this fraction of rows are folded into __OTHER__.
-# Keeps OneHot dimensionality sane and stabilizes SHAP attributions.
-RARE_CATEGORY_MIN_FRACTION: float = 0.01
+<img width="389" height="523" alt="image" src="https://github.com/user-attachments/assets/571a06e0-d6f0-49b6-8e44-de545669384e" />
 
-# --- New: calibration ---
-# When True, wrap the trained classifier in CalibratedClassifierCV so that
-# `predict_proba` outputs are interpretable as actual probabilities.
-ML_CALIBRATE_PROBABILITIES: bool = True
-ML_CALIBRATION_METHOD: str = "isotonic"  # or "sigmoid" (Platt scaling)
-ML_CALIBRATION_HOLDOUT_FRACTION: float = 0.15  # carved out of train
+<img width="1270" height="926" alt="image" src="https://github.com/user-attachments/assets/e5e6599b-3edd-4051-b4e8-286997db98b9" />
 
-# --- New: evaluation ---
-ML_BOOTSTRAP_ITERATIONS: int = 200    # for confidence intervals on AUC / F1
-ML_LEARNING_CURVE_POINTS: int = 5     # # train-size samples in learning curve
 
-# XGBoost hyperparameter search space
-XGB_PARAM_GRID: dict = {
-    "n_estimators": [200, 300, 500],
-    "max_depth": [3, 5, 7],
-    "learning_rate": [0.01, 0.05, 0.1, 0.2],
-    "gamma": [0, 0.1, 0.5],
-    "subsample": [0.7, 0.8, 1.0],
-    "colsample_bytree": [0.7, 0.8, 1.0],
-    "reg_alpha": [0.001, 0.01, 0.1, 1],
-    "reg_lambda": [0.001, 0.01, 0.1, 1],
-    "min_child_weight": [1, 3, 5],   # NEW: helps with imbalance
-}
+---
 
-# Risk thresholds (probability)
-RISK_LOW_MAX: float = 0.15
-RISK_MEDIUM_MAX: float = 0.35
+### 🧠 2. Explainable AI (SHAP)
+- **Global SHAP importance** (dot & bar summary plots)  
+- **Per-employee explanation** with:
+  - Top SHAP drivers  
+  - Employee name, registry number, role, division/department  
+- Optional **SHAP interaction effects** with caching to avoid repeated heavy calculations.
+- **Scenario-ready explainability** supporting HRBP conversations.
 
-# --------------------------------------------------------------------
-# Display / UI
-# --------------------------------------------------------------------
-EARLY_LEAVER_DEFAULT_MONTHS: int = 12
-TOP_N_PROFILE_DEFAULT: int = 30
-TOP_N_DRIVERS_DEFAULT: int = 10
-SHAP_SAMPLE_SIZE_GLOBAL: int = 1000
-SHAP_SAMPLE_SIZE_DEPENDENCE: int = 800
+<img width="1349" height="929" alt="image" src="https://github.com/user-attachments/assets/927691bf-ea9e-4ce8-a9ee-016dcd1fd154" />
 
-# --------------------------------------------------------------------
-# Encodings tried when reading the CSV
-# --------------------------------------------------------------------
-CSV_ENCODINGS: tuple[str, ...] = ("utf-8", "cp1253", "iso-8859-7", "latin1")
-CSV_SEPARATOR: str = ";"
+---
 
-# --------------------------------------------------------------------
-# Column rename map (raw → canonical)
-# --------------------------------------------------------------------
-COLUMN_RENAME_MAP: dict[str, str] = {
-    # leavers/full file (lowercased)
-    "hire_date": "HireDate",
-    "departure_date": "DepartureDate",
-    "job_title": "JobTitle",
-    "departure_type": "Departure Type",
-    "company": "Company",
-    "division": "Division",
-    "department": "Department",
-    "κωδικός_εργαζόμενου": "Registry_Number",
-    "job_property": "Job Property",
-}
+### 📈 3. Manpower Forecasting (Prophet + Optuna)
+- Monthly forecasting of:
+  - Leavers  
+  - Hires  
+  - Net headcount  
+- Integrated **hyperparameter optimization** with Optuna for improved forecast accuracy.
+- Multiple error metrics:
+  - **RMSE**
+  - MAE  
+  - Bias estimate  
+- Forecast visualizations with confidence intervals.
+<img width="1359" height="631" alt="image" src="https://github.com/user-attachments/assets/59bd15bf-7291-404d-a1cb-e7a736ad26d1" />
 
-# ML rename map (raw → canonical)
-ML_COLUMN_RENAME_MAP: dict[str, str] = {
-    "Κωδικός εργαζόμενου": "Registry Number",
-    "Όνομα": "First Name",
-    "Ονομα": "First Name",
-    "Επώνυμο": "Last Name",
-    "Φύλο": "Gender",
-    "Ηλικία": "Age",
-    "Ημ/νία γέννησης": "Birth Date",
-    "Ημ/νία γένν": "Birth Date",
-    "hire_date": "Hire Date",
-    "departure_date": "Departure Date",
-    "departure_type": "Departure Reason Description",
-    "NominalSalary": "Nominal Salary",
-    "Σχέση Εργασίας": "Work Relationship",
-    "Σχέση Εργ": "Work Relationship",
-    "Περιγραφή Υποκαταστήματος": "City",
-    "Division": "Division",
-    "Job Property": "Job Property",
-    "Ιδιότητα Πρ": "Job Property",
-    "job_title": "Job Position",
-    "GRADE": "Grade",
-    "Department": "Department",
-    "Οικογενειακή κατάσταση": "Marital Status",
-    "NominalSa": "Nominal Salary",
-    "Φορολογική κατηγορία": "Tax Category",
-    "Βαθμίδα Εκπαίδευσης": "Education Level",
-    "Βαθμίδα Εκ": "Education Level",
-    "Company": "Company",
-}
+---
+
+### 💶 4. Salary & Grade Analytics
+- Salary distributions of:
+  - New hires  
+  - Leavers  
+  - Active employees  
+- Grade patterns, job property analysis, and group-level compensation structure.
+- Supports C&B teams in **cost planning** and salary strategy.
+<img width="575" height="474" alt="image" src="https://github.com/user-attachments/assets/ae9ecf6f-74b3-4cac-9b63-3c87ef908fde" />
+
+---
+
+### 🗂 5. Workforce Dashboards & KPIs
+- Full HR KPI suite:
+  - Turnover Rate  
+  - Early Leavers (<12 months)  
+  - Voluntary vs Non-voluntary exits  
+  - Workforce stability indicators  
+- Multi-level filters (Company → Division → Department → Job Title)
+- Interactive drill-down tables and detailed managerial insights.
+<img width="411" height="983" alt="image" src="https://github.com/user-attachments/assets/fb52be25-b294-4871-a2cc-4ea8debcb29b" />
+<img width="880" height="229" alt="image" src="https://github.com/user-attachments/assets/0bc327cf-49cd-446d-a3ae-61154043669b" />
+
+
+---
+
+### 📤 6. Automated Outputs
+- Downloadable CSVs:
+  - Predicted leavers + SHAP drivers  
+  - Cleaned datasets  
+  - Forecast results  
+- Consistent formatting for integration with Power BI & HR reporting workflows.
+
+---
+
+## 🎯 Business Value / Impact
+
+### ➤ For HR Departments
+- Automated headcount & attrition analysis  
+- Faster, more accurate workforce planning  
+- Early identification of at-risk employees  
+
+### ➤ For HR Business Partners
+- Case-by-case explainability  
+- Better preparation for sensitive discussions  
+- Improved support for line managers  
+
+### ➤ For C&B Teams
+- Salary structure insights (hiring vs attrition)  
+- Grade alignment analysis  
+- Stronger budget planning  
+
+### ➤ For HR Leadership
+- A **single source of truth** for all HR metrics  
+- Predictive insights that support annual & strategic planning  
+- Dashboards replacing slow/manual Excel workflows  
+
+---
+
+## 🛠 Tech Stack
+
+| Category       | Tools |
+|----------------|-------|
+| Web App        | **Streamlit** |
+| ML / AI        | **XGBoost**, **scikit-learn**, **SHAP** |
+| Forecasting    | **Prophet**, **Optuna** |
+| Visualization  | **Plotly**, **Matplotlib**, **Seaborn** |
+| Data           | **Pandas**, **NumPy**, **OpenPyXL** |
+| Deployment     | **Streamlit Cloud** |
+
+---
+
+## 📦 Project Structure
+
+manpower-analytics/
+│
+├── app.py # Main Streamlit application
+├── requirements.txt # Dependency list
+├── utils/
+│ ├── preprocessing.py # HR data cleaning & transformation
+│ ├── forecasting.py # Prophet + Optuna forecasting engine
+│ ├── model_ml.py # XGBoost model training & evaluation
+│ ├── shap_explain.py # SHAP explainability utilities
+│ └── helpers.py # Shared helper functions
+│
+├── assets/
+│ ├── css/ # Custom UI styling
+│ ├── images/ # Logos, banners
+│ └── examples/ # Sample datasets
+│
+└── README.md # Project documentation
+
