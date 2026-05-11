@@ -1,14 +1,298 @@
-streamlit
-pandas
-numpy
-matplotlib
-plotly
-prophet
-scikit-learn
-xgboost
-optuna
-shap
-statsmodels
-holidays
-openpyxl
-xlrd
+"""New Hire What-If Simulator: predict attrition probability for a synthetic profile."""
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+import numpy as np
+import pandas as pd
+import streamlit as st
+
+from config.constants import RISK_LOW_MAX, RISK_MEDIUM_MAX
+
+
+# --------------------------------------------------------------------
+# Range derivation
+# --------------------------------------------------------------------
+@dataclass
+class _NumRange:
+    min: int
+    max: int
+    median: int
+
+
+def _derive_salary_range(df: pd.DataFrame) -> _NumRange:
+    """Return (min, max, median) for the salary slider, with sensible global bounds."""
+    if "Nominal Salary" not in df.columns:
+        return _NumRange(800, 4000, 1500)
+
+    s = (
+        df["Nominal Salary"]
+        .astype(str)
+        .str.replace(",", ".", regex=False)
+        .str.strip()
+        .pipe(pd.to_numeric, errors="coerce")
+    )
+    s = s.where(s >= 90, s * 26)  # daily/weekly fix
+    s = s[(s.notna()) & (s > 0)]
+    if s.empty:
+        return _NumRange(800, 4000, 1500)
+    return _NumRange(
+        min=max(600, int(s.quantile(0.05))),
+        max=max(4000, int(s.quantile(0.95))),
+        median=int(s.median()),
+    )
+
+
+def _derive_age_range(df: pd.DataFrame) -> _NumRange:
+    if "Age" not in df.columns:
+        return _NumRange(20, 60, 35)
+    a = pd.to_numeric(df["Age"], errors="coerce")
+    a = a[(a.notna()) & (a > 16)]
+    if a.empty:
+        return _NumRange(20, 60, 35)
+    return _NumRange(
+        min=int(a.quantile(0.05)),
+        max=int(a.quantile(0.95)),
+        median=int(a.median()),
+    )
+
+
+def _derive_grade_choices(df: pd.DataFrame) -> list[float]:
+    if "Grade" not in df.columns:
+        return [0.1, 1, 2, 3, 4, 5]
+    g = pd.to_numeric(df["Grade"], errors="coerce")
+    valid = sorted(g[(g.notna()) & (g > 0)].unique().tolist())
+    return valid or [0.1, 1, 2, 3, 4, 5]
+
+
+def _derive_tax_categories(df: pd.DataFrame) -> list[int]:
+    if "Tax Category" not in df.columns:
+        return [1, 2, 3, 4, 5]
+    t = pd.to_numeric(df["Tax Category"], errors="coerce")
+    return sorted(t.dropna().astype(int).unique().tolist()) or [1, 2, 3, 4, 5]
+
+
+def _derive_gender_options(df: pd.DataFrame) -> list[tuple[str, float]]:
+    """List of (label, value)."""
+    fallback = [("Άνδρας", 1.0), ("Γυναίκα", 2.0)]
+    if "Gender" not in df.columns:
+        return fallback
+    g = pd.to_numeric(df["Gender"], errors="coerce").dropna().astype(int).unique()
+    options: list[tuple[str, float]] = []
+    for code in sorted(g):
+        if code == 1:
+            options.append(("Άνδρας", 1.0))
+        elif code == 2:
+            options.append(("Γυναίκα", 2.0))
+        else:
+            options.append((f"Gender code {code}", float(code)))
+    return options or fallback
+
+
+def _safe_unique(df: pd.DataFrame, col: str) -> list[str]:
+    if col not in df.columns:
+        return []
+    return sorted(df[col].dropna().astype(str).unique().tolist())
+
+
+# --------------------------------------------------------------------
+# Feature row builder
+# --------------------------------------------------------------------
+def _build_feature_row(
+    train_columns: list[str],
+    *,
+    age: int,
+    tax_cat: int,
+    salary: float,
+    grade: float,
+    gender_value: float,
+    job_prop: str,
+    division: str,
+    department: str,
+    job_pos: str,
+    city: str,
+    marital: str,
+    tenure_years: float = 0.0,
+    peer_median_salary: float | None = None,
+    education: str = "",
+) -> pd.DataFrame:
+    """Build a single-row DataFrame matching the training feature schema.
+
+    For a *new hire* simulator, Tenure defaults to 0 (just hired). For modelling
+    an existing employee profile, pass `tenure_years`.
+
+    `peer_median_salary` is used to compute SalaryToGradeRatio. When None, the
+    ratio is left as NaN — XGBoost handles it natively.
+    """
+    x = pd.DataFrame(0.0, index=[0], columns=train_columns)
+
+    # --- Numeric features ---
+    if "Age" in x.columns:
+        x.at[0, "Age"] = float(age)
+    if "Tax Category" in x.columns:
+        x.at[0, "Tax Category"] = float(tax_cat)
+    if "Log Nominal Salary" in x.columns:
+        x.at[0, "Log Nominal Salary"] = float(np.log1p(salary))
+    if "Grade" in x.columns:
+        x.at[0, "Grade"] = float(grade)
+    if "Gender" in x.columns:
+        x.at[0, "Gender"] = float(gender_value)
+    if "Job Property" in x.columns:
+        x.at[0, "Job Property"] = 1.0 if job_prop == "ADMINISTRATIVE" else 0.0
+
+    # --- Engineered features (new in robust pipeline) ---
+    if "Tenure" in x.columns:
+        x.at[0, "Tenure"] = float(tenure_years)
+    if "LogTenure" in x.columns:
+        x.at[0, "LogTenure"] = float(np.log1p(max(tenure_years, 0)))
+    if "AgeAtHire" in x.columns:
+        x.at[0, "AgeAtHire"] = float(age) - float(tenure_years)
+    if "SalaryToGradeRatio" in x.columns and peer_median_salary and peer_median_salary > 0:
+        x.at[0, "SalaryToGradeRatio"] = float(salary) / float(peer_median_salary)
+
+    def set_dummy(prefix: str, value: str) -> None:
+        if not value or value == "(none)":
+            return
+        col = f"{prefix}_{value}"
+        if col in x.columns:
+            x.at[0, col] = 1.0
+
+    set_dummy("Division", division)
+    set_dummy("Department", department)
+    set_dummy("Job Position", job_pos)
+    set_dummy("City", city)
+    set_dummy("Marital Status", marital)
+    set_dummy("Education Level", education)
+
+    return x.apply(pd.to_numeric, errors="coerce").fillna(0.0)
+
+
+def _risk_label(prob: float) -> tuple[str, str, str]:
+    if prob < RISK_LOW_MAX:
+        return "Low risk", "🟢", "Το μοντέλο εκτιμά χαμηλή πιθανότητα αποχώρησης για αυτό το προφίλ."
+    if prob < RISK_MEDIUM_MAX:
+        return "Medium risk", "🟡", "Μέτριο ρίσκο – αξίζει να εξεταστούν προσαρμογές σε μισθό/θέση/grade."
+    return "High risk", "🔴", "Υψηλό ρίσκο αποχώρησης – χρειάζεται ιδιαίτερη προσοχή στον σχεδιασμό."
+
+
+# --------------------------------------------------------------------
+# Main
+# --------------------------------------------------------------------
+def render_new_hire_simulator(
+    df_ui: pd.DataFrame,
+    model,
+    train_columns: list[str],
+) -> None:
+    st.markdown("## 🧪 New Hire What-If Simulator")
+    st.caption(
+        "Δημιούργησε ένα προφίλ νέου εργαζόμενου και δες την πιθανότητα αποχώρησης "
+        "σύμφωνα με το ML μοντέλο."
+    )
+
+    if model is None or not train_columns:
+        st.info("Πρώτα εκπαίδευσε το μοντέλο ML και μετά δοκίμασε τον simulator.")
+        return
+
+    # Derive ranges
+    sal = _derive_salary_range(df_ui)
+    age = _derive_age_range(df_ui)
+    grades = _derive_grade_choices(df_ui)
+    tax_values = _derive_tax_categories(df_ui)
+    gender_options = _derive_gender_options(df_ui)
+    gender_label_to_val = dict(gender_options)
+
+    divisions = _safe_unique(df_ui, "Division")
+    departments = _safe_unique(df_ui, "Department")
+    job_positions = _safe_unique(df_ui, "Job Position")
+    cities = _safe_unique(df_ui, "City")
+    marital_statuses = _safe_unique(df_ui, "Marital Status")
+
+    # Form
+    with st.form("new_hire_sim_form"):
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            age_val = st.slider("Ηλικία (Age)", age.min, age.max, age.median, 1)
+            tax_cat = st.selectbox("Φορολογική κατηγορία (Tax Category)", tax_values)
+            salary = st.slider("Ονομαστικός μισθός (€)", sal.min, sal.max, sal.median, 50)
+
+        with col2:
+            grade_default_idx = grades.index(0.1) if 0.1 in grades else 0
+            grade = st.selectbox("Grade", options=grades, index=grade_default_idx)
+            division = st.selectbox("Division", options=divisions or ["(none)"])
+            department = st.selectbox("Department", options=departments or ["(none)"])
+
+        with col3:
+            job_pos = st.selectbox("Job Position", options=job_positions or ["(none)"])
+            city = st.selectbox("Πόλη (City)", options=cities or ["(none)"])
+            marital = st.selectbox(
+                "Οικογενειακή κατάσταση (Marital Status)",
+                options=marital_statuses or ["(none)"],
+            )
+            gender_label = st.selectbox(
+                "Φύλο (Gender)", options=[lbl for lbl, _ in gender_options]
+            )
+            job_prop = st.selectbox(
+                "Job Property", options=["OPERATIONAL", "ADMINISTRATIVE"], index=0
+            )
+
+        submitted = st.form_submit_button("🔮 Υπολόγισε Attrition Risk")
+
+    if not submitted:
+        return
+
+    # Build row & predict
+    # Compute peer median salary for the chosen grade so SalaryToGradeRatio
+    # is meaningful in the prediction (instead of NaN/0).
+    peer_median_salary: float | None = None
+    if "Grade" in df_ui.columns and "Nominal Salary" in df_ui.columns:
+        peers = df_ui[df_ui["Grade"].round(0) == round(grade)]["Nominal Salary"]
+        if len(peers) >= 5:
+            peer_median_salary = float(peers.median())
+
+    x_new = _build_feature_row(
+        train_columns,
+        age=age_val,
+        tax_cat=tax_cat,
+        salary=salary,
+        grade=grade,
+        gender_value=gender_label_to_val[gender_label],
+        job_prop=job_prop,
+        division=division,
+        department=department,
+        job_pos=job_pos,
+        city=city,
+        marital=marital,
+        tenure_years=0.0,                       # new hire
+        peer_median_salary=peer_median_salary,
+    )
+
+    prob = float(model.predict_proba(x_new)[0, 1])
+    label, emoji, comment = _risk_label(prob)
+
+    st.markdown("---")
+    st.markdown("### Αποτέλεσμα Πρόβλεψης για το Προφίλ Νέου Εργαζόμενου")
+    st.metric(
+        label="Attrition Probability",
+        value=f"{prob*100:.1f}%",
+        help="Πιθανότητα αποχώρησης μέσα στον επόμενο χρονικό ορίζοντα.",
+    )
+    st.write(f"{emoji} **Risk level:** {label}")
+    st.write(comment)
+
+    st.markdown(
+        f"""
+        **Προφίλ που αξιολογήθηκε:**
+        - Ηλικία: **{age_val}**
+        - Μισθός: **{salary:,.0f} €**
+        - Grade: **{grade}**
+        - Φορολογική κατηγορία: **{tax_cat}**
+        - Φύλο: **{gender_label}**
+        - Job Property: **{job_prop}**
+        - Division: **{division}**
+        - Department: **{department}**
+        - Job Position: **{job_pos}**
+        - City: **{city}**
+        - Marital Status: **{marital}**
+        """
+    )
