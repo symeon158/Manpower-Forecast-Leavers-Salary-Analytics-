@@ -49,7 +49,12 @@ def _resolve_date_range(
         end_src = df["HireDate"].max() if not df["HireDate"].empty else datetime.now()
     else:
         end_src = df_dep["DepartureDate"].max()
-    end = pd.Timestamp(end_src).replace(day=1)
+    end_src = pd.Timestamp(end_src).normalize()
+    end = end_src.replace(day=1)
+    # The export usually stops mid-month; a partial last month looks like a sudden
+    # drop and drags every forecast down. Keep only complete months.
+    if end_src < end + pd.offsets.MonthEnd(0):
+        end = end - pd.DateOffset(months=1)
     return start, end
 
 

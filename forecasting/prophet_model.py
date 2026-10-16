@@ -1,5 +1,6 @@
 """
-Prophet forecasting helpers + Optuna hyperparameter tuning + baseline.
+Prophet forecasting helpers + Optuna hyperparameter tuning (on backtest error).
+Model selection / backtesting lives in forecasting/models.py.
 All functions are pure (no Streamlit calls) except where caching is needed.
 """
 from __future__ import annotations
@@ -18,8 +19,10 @@ from config.constants import (
     DEFAULT_PROPHET_SEASONALITY_PRIOR,
     DEFAULT_PROPHET_WEEKLY_SEASONALITY,
     DEFAULT_RECENT_MONTHS_FOR_TUNING,
+    FORECAST_BACKTEST_HORIZON,
+    OPTUNA_BACKTEST_ORIGINS,
 )
-from forecasting.time_series import get_recent_ts
+from forecasting.models import backtest_origins, make_prophet
 
 # Silence Optuna logs in Streamlit
 optuna.logging.set_verbosity(optuna.logging.WARNING)
@@ -56,42 +59,47 @@ def _fit_prophet(
 # --------------------------------------------------------------------
 # Optuna
 # --------------------------------------------------------------------
-def _optuna_objective(trial: optuna.Trial, ts: pd.DataFrame, metric: str) -> float:
-    df_prophet = _to_prophet_df(ts, metric)
-    if _is_too_sparse(df_prophet):
-        return float("inf")
+def _optuna_objective(
+    trial: optuna.Trial, ts: pd.DataFrame, metric: str, origins: list[pd.Timestamp]
+) -> float:
+    """Mean absolute 12-month-ahead error over rolling origins.
 
+    The previous objective was in-sample MSE, which rewards the most flexible
+    settings (they fit history best) — and those forecast worst out of sample.
+    """
     cp = trial.suggest_float("changepoint_prior_scale", 0.001, 0.5, log=True)
     sp = trial.suggest_float("seasonality_prior_scale", 0.1, 30.0, log=True)
-    weekly = trial.suggest_categorical("weekly_seasonality", [True, False])
+    fn = make_prophet(cp, sp)
+    errors = []
+    for origin in origins:
+        hist = ts[ts["Date"] <= origin]
+        actual = ts[ts["Date"] > origin][metric].head(FORECAST_BACKTEST_HORIZON).to_numpy(float)
+        try:
+            errors.append(np.abs(actual - fn(hist, metric, len(actual))).mean())
+        except Exception:
+            return float("inf")
+    return float(np.mean(errors)) if errors else float("inf")
 
-    try:
-        m = _fit_prophet(df_prophet, cp, sp, weekly)
-    except Exception:
-        return float("inf")
 
-    forecast = m.predict(df_prophet[["ds"]])
-    return float(np.mean((df_prophet["y"].values - forecast["yhat"].values) ** 2))
-
-
-@st.cache_data(show_spinner="🔍 Optuna hyperparameter optimization...")
+@st.cache_data(show_spinner="🔍 Optuna: tuning Prophet on rolling backtest error...")
 def run_optuna_tuning(
     ts: pd.DataFrame,
     metric: str,
     n_trials: int,
     recent_months: int = DEFAULT_RECENT_MONTHS_FOR_TUNING,
 ) -> dict[str, Any]:
-    """Search best Prophet hyperparams on the recent slice of `ts`."""
-    if ts.empty:
+    """Search Prophet priors that minimise backtest error on origins within the last `recent_months`."""
+    if ts.empty or _is_too_sparse(_to_prophet_df(ts, metric)):
         return {}
-    df_recent = get_recent_ts(ts, months=recent_months)
-    if _is_too_sparse(_to_prophet_df(df_recent, metric)):
+    cutoff = ts["Date"].max() - pd.DateOffset(months=recent_months)
+    origins = [o for o in backtest_origins(ts) if o >= cutoff][-OPTUNA_BACKTEST_ORIGINS:]
+    if not origins:
         return {}
 
     study = optuna.create_study(direction="minimize")
     try:
         study.optimize(
-            lambda t: _optuna_objective(t, df_recent, metric),
+            lambda t: _optuna_objective(t, ts, metric, origins),
             n_trials=n_trials,
             show_progress_bar=False,
         )
@@ -153,60 +161,3 @@ def calculate_metrics(df_prophet: pd.DataFrame, forecast: pd.DataFrame) -> dict:
         else float("nan")
     )
     return {"mae": float(mae), "mape": mape}
-
-
-def baseline_metrics(ts: pd.DataFrame, metric: str) -> dict | None:
-    """Naive seasonal baseline: y_t = y_{t-12}."""
-    if ts.empty:
-        return None
-    s = ts.set_index("Date")[metric].astype(float)
-    if s.dropna().shape[0] < 13:
-        return None
-
-    baseline = s.shift(12)
-    mask = baseline.notna() & s.notna()
-    if not mask.any():
-        return None
-
-    y_true = s[mask].values
-    y_pred = baseline[mask].values
-    mae = mean_absolute_error(y_true, y_pred)
-    nz = y_true != 0
-    mape = (
-        float(np.mean(np.abs((y_true[nz] - y_pred[nz]) / y_true[nz])) * 100)
-        if nz.any()
-        else float("nan")
-    )
-    return {"mae": float(mae), "mape": mape}
-
-
-# --------------------------------------------------------------------
-# Narrative
-# --------------------------------------------------------------------
-def business_summary(
-    ts: pd.DataFrame,
-    metric: str,
-    horizon: int,
-    forecast: pd.DataFrame | None,
-    metrics: dict | None,
-) -> str:
-    if ts.empty or forecast is None or metrics is None:
-        return "Δεν υπάρχουν αρκετά δεδομένα για παραγωγή περίληψης."
-
-    last_history = ts["Date"].max()
-    future = forecast[forecast["ds"] > last_history]
-    mae = metrics.get("mae", float("nan"))
-    mape = metrics.get("mape", float("nan"))
-    quality = (
-        "ικανοποιητικής"
-        if not np.isnan(mape) and mape < 50
-        else "μέτριας / θορυβώδους"
-    )
-
-    return (
-        f"- Το μοντέλο καλύπτει **{ts['Date'].min():%Y-%m} → {ts['Date'].max():%Y-%m}**.\n"
-        f"- Συνολικά ιστορικά {metric}: **{ts[metric].sum():.0f}** "
-        f"(μέσος όρος **{ts[metric].mean():.1f}** ανά μήνα).\n"
-        f"- Για τους επόμενους **{horizon}** μήνες, πρόβλεψη **{future['yhat'].sum():.0f}** {metric}.\n"
-        f"- MAE: **{mae:.2f}**, MAPE: **{mape:.1f}%** — {quality} προσαρμογή."
-    )
