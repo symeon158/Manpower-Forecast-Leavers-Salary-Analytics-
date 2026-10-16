@@ -6,6 +6,7 @@ import plotly.express as px
 import streamlit as st
 
 from forecasting import classify_voluntary
+from ui.salary_grade_box import render_salary_grade_boxplot
 
 
 def render_salary_tab(
@@ -13,7 +14,11 @@ def render_salary_tab(
     df_leavers_period: pd.DataFrame,
     metric: str,
     date_range: tuple,
+    company: str = "",
 ) -> None:
+    render_salary_grade_boxplot(df_filtered, sidebar_company=company)
+    st.markdown("---")
+
     # Population depends on metric
     if metric == "Hires" and "HireDate" in df_filtered.columns:
         df_pop = df_filtered[

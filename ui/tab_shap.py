@@ -23,6 +23,7 @@ def render_shap_section(
     likely_to_attrite: pd.DataFrame,
     registry_numbers: pd.Series,
     meta_cols: pd.DataFrame,
+    display_names: dict[str, str] | None = None,
 ) -> None:
     st.markdown("## 🧠 SHAP – Model Explainability")
 
@@ -31,7 +32,8 @@ def render_shap_section(
         return
 
     _render_predicted_leavers_table(
-        model, X_active, likely_to_attrite, registry_numbers, meta_cols
+        model, X_active, likely_to_attrite, registry_numbers, meta_cols,
+        display_names=display_names,
     )
 
     bundle = _get_or_compute_global_shap(model, X_train)
@@ -57,7 +59,8 @@ def _get_or_compute_global_shap(model, X_train):
 
 
 def _render_predicted_leavers_table(
-    model, X_active, likely_to_attrite, registry_numbers, meta_cols
+    model, X_active, likely_to_attrite, registry_numbers, meta_cols,
+    display_names: dict[str, str] | None = None,
 ) -> None:
     st.markdown("### 📌 Predicted Attrition & Top SHAP Drivers (Active Employees)")
     n = 0 if likely_to_attrite is None else likely_to_attrite.shape[0]
@@ -69,7 +72,9 @@ def _render_predicted_leavers_table(
     with st.spinner("Υπολογισμός τοπικών SHAP drivers για predicted leavers..."):
         idx = likely_to_attrite.index
         X_likely = X_active.loc[idx]
-        drivers = top_drivers_per_employee(model, X_likely, top_n=3)
+        drivers = top_drivers_per_employee(
+            model, X_likely, top_n=3, display_names=display_names,
+        )
 
     out = pd.DataFrame(
         {

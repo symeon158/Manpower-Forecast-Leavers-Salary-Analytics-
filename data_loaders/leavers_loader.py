@@ -32,27 +32,47 @@ log = logging.getLogger(__name__)
 def robust_read_csv(uploaded_file: Any) -> pd.DataFrame:
     """
     Read uploaded_file (Streamlit UploadedFile) as CSV trying several
-    Greek encodings. Never raises UnicodeDecodeError - falls back to
-    latin1 with replacement.
+    Greek encodings. Never raises - falls back to latin1 with replacement.
+
+    Catches ALL exception classes (not just UnicodeDecodeError) because some
+    pandas/python combinations raise different exception types depending on
+    where in the decode pipeline the bad byte is encountered.
     """
     raw_bytes = uploaded_file.getvalue()  # safe even if read multiple times
 
+    last_error: Exception | None = None
     for enc in CSV_ENCODINGS:
         try:
-            return pd.read_csv(io.BytesIO(raw_bytes), sep=CSV_SEPARATOR, encoding=enc)
-        except UnicodeDecodeError:
+            df = pd.read_csv(
+                io.BytesIO(raw_bytes),
+                sep=CSV_SEPARATOR,
+                encoding=enc,
+                encoding_errors="strict",  # force errors NOW so we can fall back
+                low_memory=False,           # avoid partial-decode surprises
+            )
+            log.info("CSV decoded successfully with encoding %s (%d rows)", enc, len(df))
+            return df
+        except (UnicodeDecodeError, UnicodeError) as e:
+            last_error = e
+            log.debug("CSV decode failed with %s: %s", enc, e)
             continue
-        except Exception as e:  # malformed CSV, etc.
-            log.debug("CSV read failed with %s: %s", enc, e)
+        except Exception as e:                # noqa: BLE001
+            last_error = e
+            log.debug("CSV read failed with %s (%s): %s", enc, type(e).__name__, e)
             continue
 
-    # Final fallback: never fails
-    log.warning("All preferred encodings failed - using latin1 with replacement.")
+    # Final fallback: never fails, replaces undecodable bytes with U+FFFD
+    log.warning(
+        "All preferred encodings failed (last error: %s). "
+        "Using latin1 with replacement — some characters may show as garbage.",
+        last_error,
+    )
     return pd.read_csv(
         io.BytesIO(raw_bytes),
         sep=CSV_SEPARATOR,
         encoding="latin1",
         encoding_errors="replace",
+        low_memory=False,
     )
 
 
